@@ -24,7 +24,7 @@ func (d *defaultParser) Parse(originalRawConfig map[interface{}]interface{}, raw
 	// delete the commands, since we don't need it in a normal scenario
 	delete(rawConfig, "commands")
 
-	return fillVariablesAndParse(resolver, rawConfig, log)
+	return fillVariablesExcludeAndParse(resolver, rawConfig, log)
 }
 
 func NewWithCommandsParser() Parser {
@@ -34,7 +34,7 @@ func NewWithCommandsParser() Parser {
 type withCommandsParser struct{}
 
 func (d *withCommandsParser) Parse(originalRawConfig map[interface{}]interface{}, rawConfig map[interface{}]interface{}, resolver variable.Resolver, log log.Logger) (*latest.Config, error) {
-	return fillVariablesAndParse(resolver, rawConfig, log)
+	return fillVariablesExcludeAndParse(resolver, rawConfig, log)
 }
 
 func NewCommandsParser() Parser {
@@ -50,7 +50,7 @@ func (c *commandsParser) Parse(originalRawConfig map[interface{}]interface{}, ra
 		return nil, err
 	}
 
-	return fillVariablesAndParse(resolver, preparedConfig, log)
+	return fillVariablesExcludeAndParse(resolver, preparedConfig, log)
 }
 
 func NewProfilesParser() Parser {
@@ -95,9 +95,27 @@ func (p *profilesParser) Parse(originalRawConfig map[interface{}]interface{}, ra
 	return retConfig, nil
 }
 
-func fillVariablesAndParse(resolver variable.Resolver, preparedConfig map[interface{}]interface{}, log log.Logger) (*latest.Config, error) {
+func NewEagerParser() Parser {
+	return &eagerParser{}
+}
+
+type eagerParser struct{}
+
+func (e *eagerParser) Parse(originalRawConfig map[interface{}]interface{}, rawConfig map[interface{}]interface{}, resolver variable.Resolver, log log.Logger) (*latest.Config, error) {
+	return fillAllVariablesAndParse(resolver, rawConfig, log)
+}
+
+func fillAllVariablesAndParse(resolver variable.Resolver, preparedConfig map[interface{}]interface{}, log log.Logger) (*latest.Config, error) {
+	return fillVariablesAndParse(resolver, preparedConfig, log)
+}
+
+func fillVariablesExcludeAndParse(resolver variable.Resolver, preparedConfig map[interface{}]interface{}, log log.Logger) (*latest.Config, error) {
+	return fillVariablesAndParse(resolver, preparedConfig, log, runtime.Locations...)
+}
+
+func fillVariablesAndParse(resolver variable.Resolver, preparedConfig map[interface{}]interface{}, log log.Logger, excludedPaths ...string) (*latest.Config, error) {
 	// fill in variables and expressions (leave out
-	preparedConfigInterface, err := resolver.FillVariablesExclude(preparedConfig, runtime.Locations)
+	preparedConfigInterface, err := resolver.FillVariablesExclude(preparedConfig, excludedPaths)
 	if err != nil {
 		return nil, err
 	}

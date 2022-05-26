@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"github.com/loft-sh/devspace/pkg/devspace/config"
+	"github.com/loft-sh/devspace/pkg/devspace/config/loader"
 	"github.com/loft-sh/devspace/pkg/devspace/dependency"
 	"github.com/loft-sh/devspace/pkg/devspace/dependency/types"
 	"github.com/loft-sh/devspace/pkg/devspace/hook"
@@ -24,8 +25,9 @@ import (
 type PrintCmd struct {
 	*flags.GlobalFlags
 
-	Out      io.Writer
-	SkipInfo bool
+	Out       io.Writer
+	SkipInfo  bool
+	EagerVars bool
 
 	Dependency string
 }
@@ -55,6 +57,7 @@ profile after all patching and variable substitution
 
 	printCmd.Flags().BoolVar(&cmd.SkipInfo, "skip-info", false, "When enabled, only prints the configuration without additional information")
 	printCmd.Flags().StringVar(&cmd.Dependency, "dependency", "", "The dependency to print the config from. Use dot to access nested dependencies (e.g. dep1.dep2)")
+	printCmd.Flags().BoolVar(&cmd.EagerVars, "eager-vars", false, "When enabled, eagerly fill variables")
 
 	return printCmd
 }
@@ -80,9 +83,17 @@ func (cmd *PrintCmd) Run(f factory.Factory) error {
 	configOptions.KubeClient = client
 
 	// load config
-	loadedConfig, err := configLoader.Load(configOptions, log)
-	if err != nil {
-		return err
+	var loadedConfig config.Config
+	if cmd.EagerVars {
+		loadedConfig, err = configLoader.LoadWithParser(loader.NewEagerParser(), configOptions, log)
+		if err != nil {
+			return err
+		}
+	} else {
+		loadedConfig, err = configLoader.Load(configOptions, log)
+		if err != nil {
+			return err
+		}
 	}
 
 	// resolve dependencies

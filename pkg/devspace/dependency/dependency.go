@@ -70,6 +70,15 @@ func NewManager(config config.Config, client kubectl.Client, configOptions *load
 	}
 }
 
+func NewManagerWithParser(config config.Config, client kubectl.Client, configOptions *loader.ConfigOptions, logger log.Logger, parser loader.Parser) Manager {
+	return &manager{
+		config:   config,
+		log:      logger,
+		resolver: NewResolver(config, client, configOptions, logger).WithParser(parser),
+		client:   client,
+	}
+}
+
 // UpdateAll will update all dependencies if there are any
 func (m *manager) UpdateAll() error {
 	if m.config == nil || m.config.Config() == nil || len(m.config.Config().Dependencies) == 0 {

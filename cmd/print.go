@@ -25,9 +25,8 @@ import (
 type PrintCmd struct {
 	*flags.GlobalFlags
 
-	Out       io.Writer
-	SkipInfo  bool
-	EagerVars bool
+	Out      io.Writer
+	SkipInfo bool
 
 	Dependency string
 }
@@ -57,7 +56,6 @@ profile after all patching and variable substitution
 
 	printCmd.Flags().BoolVar(&cmd.SkipInfo, "skip-info", false, "When enabled, only prints the configuration without additional information")
 	printCmd.Flags().StringVar(&cmd.Dependency, "dependency", "", "The dependency to print the config from. Use dot to access nested dependencies (e.g. dep1.dep2)")
-	printCmd.Flags().BoolVar(&cmd.EagerVars, "eager-vars", false, "When enabled, eagerly fill variables")
 
 	return printCmd
 }
@@ -82,22 +80,17 @@ func (cmd *PrintCmd) Run(f factory.Factory) error {
 	}
 	configOptions.KubeClient = client
 
+	parser := loader.NewEagerParser()
+
 	// load config
 	var loadedConfig config.Config
-	if cmd.EagerVars {
-		loadedConfig, err = configLoader.LoadWithParser(loader.NewEagerParser(), configOptions, log)
-		if err != nil {
-			return err
-		}
-	} else {
-		loadedConfig, err = configLoader.Load(configOptions, log)
-		if err != nil {
-			return err
-		}
+	loadedConfig, err = configLoader.LoadWithParser(parser, configOptions, log)
+	if err != nil {
+		return err
 	}
 
 	// resolve dependencies
-	dependencies, err := dependency.NewManager(loadedConfig, client, configOptions, log).ResolveAll(dependency.ResolveOptions{
+	dependencies, err := dependency.NewManagerWithParser(loadedConfig, client, configOptions, log, parser).ResolveAll(dependency.ResolveOptions{
 		Silent: true,
 	})
 	if err != nil {

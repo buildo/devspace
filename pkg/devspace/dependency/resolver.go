@@ -29,6 +29,7 @@ import (
 // ResolverInterface defines the resolver interface that takes dependency configs and resolves them
 type ResolverInterface interface {
 	Resolve(update bool) ([]types.Dependency, error)
+	WithParser(parser loader.Parser) ResolverInterface
 }
 
 // Resolver implements the resolver interface
@@ -40,6 +41,7 @@ type resolver struct {
 	BaseCache  *generated.Config
 	BaseConfig *latest.Config
 	BaseVars   map[string]interface{}
+	BaseParser loader.Parser
 
 	ConfigOptions *loader.ConfigOptions
 
@@ -87,6 +89,16 @@ func NewResolver(baseConfig config.Config, client kubectl.Client, configOptions 
 		generatedSaver: generated.NewConfigLoaderFromDevSpacePath("", baseConfig.Path()),
 		log:            log,
 	}
+}
+
+func (r *resolver) WithParser(parser loader.Parser) ResolverInterface {
+	if r == nil {
+		return nil
+	}
+
+	n := *r
+	n.BaseParser = parser
+	return &n
 }
 
 // Resolve implements interface
@@ -245,7 +257,12 @@ func (r *resolver) resolveDependency(basePath string, dependency *latest.Depende
 	// load the dependency config
 	var dConfigWrapper config.Config
 	err = executeInDirectory(filepath.Dir(configPath), func() error {
-		dConfigWrapper, err = loader.NewConfigLoader(configPath).LoadWithParser(loader.NewWithCommandsParser(), cloned, r.log)
+		if r.BaseParser == nil {
+			dConfigWrapper, err = loader.NewConfigLoader(configPath).LoadWithParser(loader.NewWithCommandsParser(), cloned, r.log)
+		} else {
+			dConfigWrapper, err = loader.NewConfigLoader(configPath).LoadWithParser(r.BaseParser, cloned, r.log)
+		}
+
 		if err != nil {
 			return errors.Wrap(err, fmt.Sprintf("loading config for dependency %s", dependency.Name))
 		}
